@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>時間的秘密 - 互動教學</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --pastel-yellow: #FFF8D6;
+            --soft-blue: #A5D7E8;
+            --soft-red: #FFB4B4;
+            --soft-green: #B2D8B2;
+            --soft-purple: #DBC4F0;
+            --text-color: #4A5568;
+            --border-color: #7D9D9C;
+        }
+        body {
+            font-family: 'PingFang TC', 'Heiti TC', 'Microsoft JhengHei', sans-serif;
+            background-color: #FFFDF9;
+            color: var(--text-color);
+            transition: background 0.8s ease, color 0.8s ease;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        .slide { display: none; min-height: 100vh; padding: 2rem; padding-bottom: 120px; flex-direction: column; align-items: center; justify-content: center; }
+        .slide.active { display: flex; animation: fadeIn 0.5s ease; }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Clock Components */
+        .clock-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            background: white;
+            border: 10px solid var(--border-color);
+            border-radius: 50%;
+            box-shadow: 0 10px 0px #E4EFE7;
+            margin: 10px auto;
+            flex-shrink: 0;
+        }
+        .hand {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform-origin: 50% 100%;
+            border-radius: 20px;
+        }
+        .hour-hand { width: 12px; height: 75px; background: #333; z-index: 3; margin-left: -6px; }
+        .min-hand { width: 8px; height: 105px; background: var(--soft-blue); z-index: 2; margin-left: -4px; border: 1px solid #576F72; }
+        .sec-hand { width: 4px; height: 120px; background: var(--soft-red); z-index: 4; margin-left: -2px; }
+        
+        .center-axis {
+            position: absolute;
+            top: 50%; left: 50%;
+            width: 18px; height: 18px;
+            background: white;
+            border: 4px solid var(--border-color);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+        }
+        .clock-num {
+            position: absolute;
+            font-weight: 800; font-size: 1.4rem; color: #4A5568;
+            width: 36px; height: 36px;
+            display: flex; align-items: center; justify-content: center;
+            transform: translate(-50%, -50%);
+        }
+        .minute-label {
+            position: absolute;
+            font-size: 0.85rem; font-weight: 800; color: #5CB8E4;
+            transform: translate(-50%, -50%);
+            background: white; padding: 1px 4px; border-radius: 4px;
+            border: 1px solid #E0E0E0;
+            z-index: 5;
+        }
+
+        .h24-label {
+            position: absolute;
+            font-size: 0.75rem; color: #94A3B8; font-weight: bold;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .bubble {
+            position: relative;
+            background: #fff;
+            border: 3px solid var(--border-color);
+            border-radius: 15px;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            color: #333;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -15px; left: 20px;
+            border-width: 15px 15px 0;
+            border-style: solid;
+            border-color: var(--border-color) transparent;
+        }
+
+        .cute-card {
+            background: white;
+            border: 4px solid var(--border-color);
+            border-radius: 32px;
+            padding: 2rem;
+            box-shadow: 6px 6px 0px #E4EFE7;
+            width: 100%;
+            max-width: 650px;
+            color: #4A5568;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .btn-cute {
+            background: var(--pastel-yellow);
+            padding: 0.8rem 2rem;
+            border-radius: 20px;
+            border: 4px solid var(--border-color);
+            font-weight: bold;
+            box-shadow: 4px 4px 0px var(--border-color);
+            cursor: pointer;
+            transition: 0.2s;
+            color: #4A5568;
+        }
+        .btn-cute:hover { transform: translateY(-2px); box-shadow: 6px 6px 0px var(--border-color); }
+        .btn-cute:active { transform: translate(2px, 2px); box-shadow: none; }
+        
+        .progress-bar { position: fixed; top: 0; left: 0; height: 10px; background: var(--soft-green); transition: width 0.3s; z-index: 100; border-bottom-right-radius: 5px; }
+        
+        .night-mode { background-color: #1A202C !important; color: #E2E8F0 !important; }
+        .night-mode .cute-card { background-color: #2D3748; border-color: #4A5568; color: white; }
+        .night-mode .clock-num { color: #CBD5E0; }
+
+        .highlight { background: #FFF8D6; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #333; }
+        
+        .digital-display {
+            background: #1a1a1a;
+            color: #00ff41;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 20px 40px;
+            border-radius: 20px;
+            border: 8px solid #333;
+            box-shadow: inset 0 0 15px rgba(0,255,65,0.2);
+            text-shadow: 0 0 10px rgba(0,255,65,0.5);
+            min-width: 200px;
+            text-align: center;
+        }
+
+        .timeline {
+            position: relative;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .timeline::after {
+            content: '';
+            position: absolute;
+            width: 6px;
+            background-color: #E2E8F0;
+            top: 0; bottom: 0;
+            left: 20px;
+            margin-left: -3px;
+            border-radius: 10px;
+        }
+        .timeline-item {
+            padding: 10px 40px;
+            position: relative;
+            background-color: inherit;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        .timeline-dot {
+            position: absolute;
+            width: 20px; height: 20px;
+            left: 10px;
+            top: 25px;
+            background-color: white;
+            border: 4px solid var(--soft-blue);
+            border-radius: 50%;
+            z-index: 1;
+        }
+        .timeline-content {
+            padding: 15px 20px;
+            background-color: white;
+            position: relative;
+            border-radius: 20px;
+            border: 2px solid #EDF2F7;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        .timeline-content:hover {
+            transform: scale(1.02);
+            border-color: var(--soft-blue);
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.3s ease-in-out 2; }
+    </style>
+</head>
+<body>
+
+    <div id="progress" class="progress-bar"></div>
+
+    <!-- P1: 封面 -->
+    <div class="slide active">
+        <div class="animate-bounce">
+            <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="#7D9D9C" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+        </div>
+        <h1 class="text-5xl font-bold mt-8 mb-4 text-center">時間的秘密</h1>
+        <p class="text-xl text-slate-400 mb-10 italic">關於時鐘與太陽的奇幻冒險</p>
+        <button onclick="nextSlide()" class="btn-cute text-xl">點一下開始故事！</button>
+    </div>
+
+    <!-- P2 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-6 text-orange-500 text-center">倒數聲中的驚喜</h2>
+        <div class="cute-card text-center">
+            <p class="text-xl mb-6">「5... 4... 3... 2... 1...」</p>
+            <div id="countdown-num" class="text-7xl font-black text-red-500 mb-6">10</div>
+            <p class="text-lg leading-relaxed">每年的最後一刻，大家都在數著時間。<br>你好奇過，那個「滴答」的一秒鐘長什麼樣嗎？</p>
+            <button onclick="startCountdown()" class="btn-cute mt-8">按下按鈕開始倒數</button>
+        </div>
+    </div>
+
+    <!-- P3 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-6 text-blue-500 text-center">你的心裡鐘準嗎？</h2>
+        <div class="cute-card text-center">
+            <p class="text-xl mb-6">一分鐘（60秒）有多長呢？<br>閉上眼睛，當你覺得一分鐘到了就按按鈕！</p>
+            <div id="p3-timer" class="text-5xl font-mono text-slate-300 mb-6">00.00</div>
+            <button id="p3-btn" onclick="p3Toggle()" class="btn-cute">我準備好了！</button>
+            <p id="p3-result" class="mt-6 text-xl font-bold text-green-600 h-8"></p>
+        </div>
+    </div>
+
+    <!-- P4 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-6 text-center text-slate-700">遇見時鐘三兄弟</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl mb-6">
+            <div class="flex flex-col items-center">
+                <div class="bubble border-slate-700">胖老大：我最穩重！</div>
+                <div class="w-12 h-20 bg-slate-800 rounded-t-full border-4 border-slate-600 flex items-end justify-center pb-2 text-white font-bold text-sm">時針</div>
+            </div>
+            <div class="flex flex-col items-center">
+                <div class="bubble border-blue-400">瘦二哥：負責數分！</div>
+                <div class="w-10 h-28 bg-blue-400 rounded-t-full border-4 border-blue-200 flex items-end justify-center pb-2 text-white font-bold text-sm">分針</div>
+            </div>
+            <div class="flex flex-col items-center">
+                <div class="bubble border-red-400">快小弟：跑最快的！</div>
+                <div class="w-6 h-36 bg-red-400 rounded-t-full border-4 border-red-200 flex items-end justify-center pb-2 text-white font-bold text-xs">秒針</div>
+            </div>
+        </div>
+        <div class="clock-container scale-75">
+            <div class="clock-frame"></div><div class="center-axis"></div>
+            <div class="hand hour-hand" style="transform: rotate(60deg)"></div>
+            <div class="hand min-hand" style="transform: rotate(180deg)"></div>
+            <div id="p4-sec" class="hand sec-hand"></div>
+        </div>
+    </div>
+
+    <!-- P5 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-6 text-blue-500 text-center">指針的連動魔法</h2>
+        <div class="cute-card">
+            <div class="flex flex-col md:flex-row items-center gap-8 w-full">
+                <div class="flex-1 space-y-4">
+                    <p class="text-lg">秒針跑完一圈 (60秒)，<br>分針才會悄悄走一小格 (1分鐘)。</p>
+                    <div class="p-4 bg-red-50 rounded-2xl border-2 border-red-100 text-center">
+                        <span class="text-xl font-bold text-red-500">60 秒 = 1 分鐘</span>
+                    </div>
+                    <button onclick="runMagic()" class="btn-cute w-full">啟動連動魔法！</button>
+                </div>
+                <div class="clock-container scale-75">
+                    <div class="clock-frame"></div><div class="center-axis"></div>
+                    <div id="h-magic" class="hand hour-hand"></div>
+                    <div id="m-magic" class="hand min-hand"></div>
+                    <div id="s-magic" class="hand sec-hand"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- P6 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-6 text-orange-500 text-center">小格子的「五五」秘密</h2>
+        <div class="flex flex-col lg:flex-row gap-8 items-center w-full max-w-5xl">
+            <div class="clock-container" id="p6-clock">
+                <div class="clock-frame"></div><div class="center-axis"></div>
+                <div id="p6-m-hand" class="hand min-hand" style="transform: rotate(30deg)"></div>
+            </div>
+            <div class="cute-card">
+                <p class="text-lg mb-4">看分針要數外面的小格子：</p>
+                <div class="grid grid-cols-2 gap-3 mb-6 w-full text-sm">
+                    <div class="p-2 bg-blue-50 rounded-lg border">數字 1 = <span class="font-bold">5 分</span></div>
+                    <div class="p-2 bg-blue-50 rounded-lg border">數字 2 = <span class="font-bold">10 分</span></div>
+                    <div class="p-2 bg-blue-50 rounded-lg border">數字 3 = <span class="font-bold">15 分</span></div>
+                    <div class="p-2 bg-blue-50 rounded-lg border">數字 6 = <span class="font-bold">30 分</span></div>
+                </div>
+                <input type="range" min="0" max="11" value="1" class="w-full h-3 bg-blue-200 rounded-lg appearance-none" oninput="p6Update(this.value)">
+                <p class="text-center mt-4 text-xs italic">拖動滑桿看看分針指在哪？</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- P7 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-8 text-purple-600 text-center">把時鐘切一半</h2>
+        <div class="cute-card flex flex-col md:flex-row items-center gap-8">
+            <div class="flex-1 text-center md:text-left">
+                <p class="text-xl mb-4 font-bold text-purple-500">「半小時」就是 30 分</p>
+                <p class="text-lg">當分針直直指著數字 <span class="highlight">6</span>，就是走了一半。這就是我們常說的「幾點半」。</p>
+            </div>
+            <div class="clock-container scale-75">
+                <div class="clock-frame"></div><div class="center-axis"></div>
+                <div class="hand hour-hand" style="transform: rotate(135deg)"></div>
+                <div class="hand min-hand" style="transform: rotate(180deg)"></div>
+                <div class="absolute inset-0 bg-purple-200 opacity-20" style="clip-path: polygon(50% 0%, 100% 0%, 100% 100%, 50% 100%);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- P8 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-8 text-slate-700 text-center">圓形鐘 vs 數位鐘</h2>
+        <div class="flex flex-col md:flex-row items-center justify-center w-full max-w-5xl gap-12">
+            <div class="flex flex-col items-center">
+                <div class="clock-container">
+                    <div class="clock-frame"></div><div class="center-axis"></div>
+                    <div class="hand hour-hand" style="transform: rotate(315deg)"></div>
+                    <div class="hand min-hand" style="transform: rotate(120deg)"></div>
+                </div>
+            </div>
+            <div class="text-5xl text-slate-300">➡️</div>
+            <div class="digital-display">
+                <span class="text-6xl md:text-8xl">10:20</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- P9 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-6 text-red-500 text-center">別被胖老大騙了！</h2>
+        <div class="cute-card">
+            <p class="text-lg mb-6 text-center">現在是 <span class="text-red-500 font-bold">1 點 50 分</span>，但時針看起來超像在 2 點！</p>
+            <div class="clock-container scale-90">
+                <div class="clock-frame"></div><div class="center-axis"></div>
+                <div class="hand hour-hand" style="transform: rotate(55deg)"></div>
+                <div class="hand min-hand" style="transform: rotate(300deg)"></div>
+            </div>
+            <p class="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 text-sm">💡 只要時針還沒完全站上數字 2，它就還是 1 點喔！</p>
+        </div>
+    </div>
+
+    <!-- P10 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-6 text-green-600 text-center">時光前進小測驗</h2>
+        <div class="cute-card text-center">
+            <p class="text-xl mb-8 leading-relaxed">現在是 5 點 10 分，<br>過了 <span class="highlight text-green-600">20 分鐘</span> 之後，<br>是幾點幾分呢？</p>
+            <div class="flex items-center justify-center gap-4 mb-8">
+                <input id="p10-h" type="number" class="w-20 p-3 border-4 rounded-2xl text-center text-2xl" placeholder="時">
+                <span class="text-4xl font-bold">:</span>
+                <input id="p10-m" type="number" class="w-20 p-3 border-4 rounded-2xl text-center text-2xl" placeholder="分">
+            </div>
+            <button onclick="p10Check()" class="btn-cute">檢查答案</button>
+            <p id="p10-fb" class="mt-6 text-xl font-bold h-12 flex items-center justify-center"></p>
+        </div>
+    </div>
+
+    <!-- P11 -->
+    <div id="p11-slide" class="slide">
+        <h2 class="text-3xl font-bold mb-6 text-center">太陽與月亮的輪班</h2>
+        <div class="flex justify-center gap-6 mb-8 w-full max-w-lg">
+            <button onclick="setDayNight('day')" class="flex-1 p-6 bg-yellow-100 rounded-3xl border-4 border-yellow-400 hover:scale-105 transition shadow-md">
+                <span class="text-4xl">☀️</span><br><span class="font-bold">第一圈 (AM)</span><br><span class="text-xs">0:00 - 12:00</span>
+            </button>
+            <button onclick="setDayNight('night')" class="flex-1 p-6 bg-indigo-900 rounded-3xl border-4 border-indigo-400 hover:scale-105 transition shadow-md text-white">
+                <span class="text-4xl">🌙</span><br><span class="font-bold">第二圈 (PM)</span><br><span class="text-xs">12:00 - 24:00</span>
+            </button>
+        </div>
+        <div id="p11-card" class="cute-card text-center min-h-[200px]">
+            <div id="day-txt">
+                <h3 class="text-2xl font-bold text-yellow-600 mb-2">上午 AM：太陽公公</h3>
+                <p class="text-lg">時針走第一圈，數字從 0 到 12。<br>當你吃完午餐，時針正好指著 12，這就是<span class="highlight">中午</span>。</p>
+            </div>
+            <div id="night-txt" class="hidden text-white">
+                <h3 class="text-2xl font-bold text-indigo-300 mb-2">下午 PM：月亮姐姐</h3>
+                <p class="text-lg">時針走第二圈，魔法發生了！<br>數字會繼續變大：<span class="text-indigo-400 font-bold">1 點變成 13 點</span>。<br>直到深夜指著 24，新的一天就開始了。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- P12 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-8 text-indigo-600 text-center">下午的「+12」魔法</h2>
+        <div class="cute-card">
+            <div class="flex flex-col md:flex-row items-center gap-8 w-full">
+                <div class="flex-1 space-y-6">
+                    <p class="text-lg">到了下午，只要把時針數字<span class="highlight">+ 12</span>，就能變出 24 小時制！</p>
+                    <div class="bg-indigo-50 p-6 rounded-2xl border-2 border-indigo-200 text-center">
+                        <span id="conv-label" class="text-gray-400">點選按鈕試試</span><br>
+                        <span id="conv-math" class="text-2xl font-bold">? + 12 = ?</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="conv(1)" class="p-2 bg-white border-2 rounded-xl text-sm hover:bg-indigo-100">下午 1 點</button>
+                        <button onclick="conv(5)" class="p-2 bg-white border-2 rounded-xl text-sm hover:bg-indigo-100">下午 5 點</button>
+                        <button onclick="conv(8)" class="p-2 bg-white border-2 rounded-xl text-sm hover:bg-indigo-100">下午 8 點</button>
+                        <button onclick="conv(11)" class="p-2 bg-white border-2 rounded-xl text-sm hover:bg-indigo-100">下午 11 點</button>
+                    </div>
+                </div>
+                <div class="clock-container scale-90" id="conv-clock">
+                    <div class="clock-frame"></div><div class="center-axis"></div>
+                    <div id="conv-hand" class="hand hour-hand"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- P13 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-8 text-slate-600 text-center">我的一天時光旅程</h2>
+        <div class="timeline w-full px-4">
+            <div class="timeline-item">
+                <div class="timeline-dot" style="border-color: var(--soft-blue);"></div>
+                <div class="timeline-content flex items-center">
+                    <div class="flex-shrink-0 w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-3xl">🎒</div>
+                    <div class="ml-6">
+                        <span class="text-sm font-bold text-blue-500 tracking-wider">上午 08:00 AM</span>
+                        <h4 class="text-lg font-bold text-slate-700">早安學校</h4>
+                        <p class="text-sm text-slate-500">背起小書包，來到學校開始學習囉！</p>
+                    </div>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot" style="border-color: var(--soft-red);"></div>
+                <div class="timeline-content flex items-center">
+                    <div class="flex-shrink-0 w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-3xl">🍱</div>
+                    <div class="ml-6">
+                        <span class="text-sm font-bold text-red-400 tracking-wider">中午 12:00 PM</span>
+                        <h4 class="text-lg font-bold text-slate-700">美味午餐</h4>
+                        <p class="text-sm text-slate-500">休息一下，補充足夠的能量。</p>
+                    </div>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <div class="timeline-dot" style="border-color: var(--soft-green);"></div>
+                <div class="timeline-content flex items-center">
+                    <div class="flex-shrink-0 w-16 h-16 bg-green-50 rounded-full flex items-center justify-center text-3xl">🛹</div>
+                    <div class="ml-6">
+                        <span class="text-sm font-bold text-green-500 tracking-wider">下午 16:00 (4 PM)</span>
+                        <h4 class="text-lg font-bold text-slate-700">放學時光</h4>
+                        <p class="text-sm text-slate-500">去公園跑跑跳跳，呼吸新鮮空氣。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- P14: 終極挑戰 -->
+    <div class="slide">
+        <h2 class="text-3xl font-bold mb-6 text-indigo-600 text-center">終極時光挑戰</h2>
+        <div id="quiz-container" class="cute-card text-center min-h-[450px] relative">
+            <div class="absolute top-4 right-6 text-slate-400 font-bold">得分: <span id="quiz-score" class="text-indigo-500">0</span></div>
+            <div id="quiz-content" class="w-full flex flex-col items-center justify-center flex-1">
+                <p id="quiz-question" class="text-xl font-bold mb-6 text-slate-700 leading-relaxed"></p>
+                <div id="quiz-visual" class="mb-6 hidden">
+                    <div class="clock-container scale-75" id="challenge-clock">
+                        <div class="clock-frame"></div><div class="center-axis"></div>
+                        <div id="challenge-h-hand" class="hand hour-hand"></div>
+                        <div id="challenge-m-hand" class="hand min-hand"></div>
+                    </div>
+                </div>
+                <div id="quiz-options" class="flex gap-4 flex-wrap justify-center w-full"></div>
+            </div>
+            <p id="quiz-fb" class="mt-6 text-xl font-bold h-10 flex items-center justify-center"></p>
+            <button id="quiz-next-btn" onclick="nextQuestion()" class="btn-cute mt-4 opacity-0 pointer-events-none transition">下一題挑戰！</button>
+        </div>
+    </div>
+
+    <!-- P15 -->
+    <div class="slide">
+        <div class="text-8xl animate-bounce">🌈</div>
+        <h2 class="text-5xl font-bold mt-4 text-center">你太棒了！</h2>
+        <p class="text-xl mt-4 text-center">現在你不但會看鐘，還知道太陽與 24 小時的秘密！</p>
+        <button onclick="showSlide(0)" class="btn-cute mt-10">回到首頁</button>
+    </div>
+
+    <!-- Navigation -->
+    <div class="fixed bottom-6 right-6 flex gap-3 z-50">
+        <button id="prev-nav" onclick="prevSlide()" class="btn-cute bg-white/90 py-2 px-5 border-2 text-sm hidden">上一步</button>
+        <button id="next-nav" onclick="nextSlide()" class="btn-cute bg-slate-800 text-white py-2 px-6 border-none text-sm">下一步</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const progress = document.getElementById('progress');
+
+        function showSlide(n) {
+            slides[currentSlide].classList.remove('active');
+            currentSlide = (n + slides.length) % slides.length;
+            slides[currentSlide].classList.add('active');
+            progress.style.width = ((currentSlide + 1) / slides.length * 100) + '%';
+            document.getElementById('prev-nav').style.display = currentSlide === 0 ? 'none' : 'block';
+            document.getElementById('next-nav').style.display = currentSlide === slides.length - 1 ? 'none' : 'block';
+            
+            if(currentSlide === 1) startCountdown();
+            if(currentSlide === 3) startP4Animate();
+            if(currentSlide === 5) initP6Labels();
+            if(currentSlide === 11) init24hClock();
+            if(currentSlide === 13) initQuiz();
+            
+            if(currentSlide !== 10 && currentSlide !== 11) setDayNight('day');
+            window.scrollTo(0, 0);
+        }
+
+        function nextSlide() { showSlide(currentSlide + 1); }
+        function prevSlide() { showSlide(currentSlide - 1); }
+
+        function initAllClocks() {
+            document.querySelectorAll('.clock-frame').forEach(frame => {
+                frame.innerHTML = '';
+                for (let i = 0; i < 60; i++) {
+                    const tick = document.createElement('div');
+                    const isMajor = i % 5 === 0;
+                    tick.style.cssText = `
+                        position: absolute; top: 0; left: 50%;
+                        width: ${isMajor ? '4px' : '2px'};
+                        height: ${isMajor ? '16px' : '8px'};
+                        background: ${isMajor ? '#7D9D9C' : '#D1D1D1'};
+                        transform-origin: 50% 140px;
+                        transform: rotate(${i * 6}deg);
+                        margin-left: -${isMajor ? '2px' : '1px'};
+                    `;
+                    frame.appendChild(tick);
+                }
+                for (let i = 1; i <= 12; i++) {
+                    const num = document.createElement('div');
+                    num.className = 'clock-num';
+                    num.innerText = i;
+                    const angle = (i * 30) * (Math.PI / 180);
+                    num.style.left = (140 + 105 * Math.sin(angle)) + 'px';
+                    num.style.top = (140 - 105 * Math.cos(angle)) + 'px';
+                    frame.appendChild(num);
+                }
+            });
+        }
+        initAllClocks();
+
+        let cd;
+        function startCountdown() {
+            let count = 10;
+            const el = document.getElementById('countdown-num');
+            if(cd) clearInterval(cd);
+            el.innerText = count;
+            cd = setInterval(() => {
+                count--;
+                el.innerText = count <= 0 ? "🎉" : count;
+                if(count <= 0) clearInterval(cd);
+            }, 1000);
+        }
+
+        let p3Start, p3Active = false;
+        function p3Toggle() {
+            const btn = document.getElementById('p3-btn');
+            const res = document.getElementById('p3-result');
+            const disp = document.getElementById('p3-timer');
+            if(!p3Active) {
+                p3Start = Date.now(); p3Active = true; btn.innerText = "就是現在！按下去！";
+                res.innerText = ""; disp.innerText = "??.??";
+            } else {
+                const diff = (Date.now() - p3Start) / 1000;
+                p3Active = false; btn.innerText = "再試一次"; disp.innerText = diff.toFixed(2);
+                if(Math.abs(60-diff) < 3) {
+                    res.innerText = "太神了！準到不行！"; res.style.color = "green";
+                } else {
+                    res.innerText = diff < 60 ? "快了一點點喔！" : "慢了一點點喔！";
+                    res.style.color = "orange";
+                }
+            }
+        }
+
+        function startP4Animate() {
+            const s = document.getElementById('p4-sec');
+            let deg = 0;
+            const itv = setInterval(() => {
+                deg += 6;
+                if(s) s.style.transform = `rotate(${deg}deg)`;
+                if(currentSlide !== 3) clearInterval(itv);
+            }, 1000);
+        }
+
+        function runMagic() {
+            const s = document.getElementById('s-magic');
+            const m = document.getElementById('m-magic');
+            let start = null;
+            function step(timestamp) {
+                if(!start) start = timestamp;
+                const progress = (timestamp - start) / 2000;
+                if(progress < 1) {
+                    const deg = progress * 360;
+                    s.style.transform = `rotate(${deg}deg)`;
+                    m.style.transform = `rotate(${deg / 60}deg)`;
+                    requestAnimationFrame(step);
+                } else {
+                    s.style.transform = 'rotate(0deg)';
+                    m.style.transform = 'rotate(6deg)';
+                }
+            }
+            requestAnimationFrame(step);
+        }
+
+        function initP6Labels() {
+            const clock = document.getElementById('p6-clock');
+            clock.querySelectorAll('.minute-label').forEach(e => e.remove());
+            for(let i = 1; i <= 12; i++) {
+                const lbl = document.createElement('div');
+                lbl.className = 'minute-label';
+                lbl.innerText = `${i * 5}分`;
+                const angle = (i * 30) * (Math.PI / 180);
+                lbl.style.left = (140 + 130 * Math.sin(angle)) + 'px';
+                lbl.style.top = (140 - 130 * Math.cos(angle)) + 'px';
+                clock.appendChild(lbl);
+            }
+        }
+        function p6Update(val) {
+            document.getElementById('p6-m-hand').style.transform = `rotate(${val * 30}deg)`;
+        }
+
+        function init24hClock() {
+            const frame = document.querySelector('#conv-clock .clock-frame');
+            frame.querySelectorAll('.h24-label').forEach(e => e.remove());
+            for(let i = 1; i <= 12; i++) {
+                const h24 = document.createElement('div');
+                h24.className = 'h24-label';
+                h24.innerText = i + 12 === 24 ? '0/24' : i + 12;
+                const angle = (i * 30) * (Math.PI / 180);
+                h24.style.left = (140 + 75 * Math.sin(angle)) + 'px';
+                h24.style.top = (140 - 75 * Math.cos(angle)) + 'px';
+                frame.appendChild(h24);
+            }
+        }
+        function conv(h) {
+            document.getElementById('conv-hand').style.transform = `rotate(${h * 30}deg)`;
+            document.getElementById('conv-label').innerText = `下午 ${h} 點`;
+            document.getElementById('conv-math').innerText = `${h} + 12 = ${h+12} 點`;
+        }
+
+        function p10Check() {
+            const h = document.getElementById('p10-h').value;
+            const m = document.getElementById('p10-m').value;
+            const fb = document.getElementById('p10-fb');
+            if(h == 5 && m == 30) { fb.innerText = "✅ 沒錯！就是 5 點 30 分！"; fb.style.color = "green"; }
+            else { fb.innerText = "❌ 差一點點，再加 20 分試試？"; fb.style.color = "red"; }
+        }
+
+        let quizScore = 0;
+        let currentAnswer = null;
+
+        function initQuiz() {
+            quizScore = 0;
+            document.getElementById('quiz-score').innerText = quizScore;
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            document.getElementById('quiz-fb').innerText = "";
+            const nextBtn = document.getElementById('quiz-next-btn');
+            nextBtn.style.opacity = "0";
+            nextBtn.style.pointerEvents = "none";
+            
+            const types = ['24h', 'math', 'visual'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            generateQuestion(type);
+        }
+
+        function generateQuestion(type) {
+            const qEl = document.getElementById('quiz-question');
+            const optEl = document.getElementById('quiz-options');
+            const visualEl = document.getElementById('quiz-visual');
+            optEl.innerHTML = "";
+            visualEl.classList.add('hidden');
+
+            if (type === '24h') {
+                const hour = Math.floor(Math.random() * 11) + 1;
+                qEl.innerHTML = `下午 <span class="text-indigo-500 font-black">${hour}</span> 點，在 24 小時制是幾點？`;
+                currentAnswer = hour + 12;
+                createOptions(currentAnswer, [hour, hour+10, hour+14]);
+            } 
+            else if (type === 'math') {
+                const startH = Math.floor(Math.random() * 8) + 1;
+                const startM = [10, 15, 20, 30][Math.floor(Math.random() * 4)];
+                const addM = [10, 20, 30][Math.floor(Math.random() * 3)];
+                qEl.innerHTML = `現在是 ${startH} 點 ${startM} 分，<br>過了 <span class="text-green-500 font-bold">${addM} 分鐘</span> 之後是幾點幾分？`;
+                currentAnswer = `${startH}:${startM + addM}`;
+                createOptions(currentAnswer, [`${startH}:${startM + addM + 5}`, `${startH + 1}:${startM}`, `${startH}:${startM + addM - 10}`]);
+            }
+            else if (type === 'visual') {
+                visualEl.classList.remove('hidden');
+                const hour = Math.floor(Math.random() * 12) + 1;
+                const minute = [0, 15, 30, 45][Math.floor(Math.random() * 4)];
+                qEl.innerText = `請看時鐘，這是幾點幾分？`;
+                document.getElementById('challenge-m-hand').style.transform = `rotate(${minute * 6}deg)`;
+                document.getElementById('challenge-h-hand').style.transform = `rotate(${(hour % 12) * 30 + (minute / 60) * 30}deg)`;
+                currentAnswer = `${hour} 點 ${minute === 0 ? '整' : minute + ' 分'}`;
+                createOptions(currentAnswer, [`${hour === 12 ? 1 : hour + 1} 點 ${minute === 0 ? '整' : minute + ' 分'}`, `${hour} 點 ${minute + 10} 分`, `${hour - 1 || 12} 點 30 分`]);
+            }
+        }
+
+        function createOptions(correct, wrongs) {
+            const optEl = document.getElementById('quiz-options');
+            let all = [correct, ...wrongs].sort(() => Math.random() - 0.5);
+            all.forEach(val => {
+                const btn = document.createElement('button');
+                btn.className = "btn-cute bg-white text-slate-600";
+                btn.innerText = val;
+                btn.onclick = () => checkAnswer(val, btn);
+                optEl.appendChild(btn);
+            });
+        }
+
+        function checkAnswer(val, btn) {
+            const fb = document.getElementById('quiz-fb');
+            const nextBtn = document.getElementById('quiz-next-btn');
+            if (val === currentAnswer) {
+                fb.innerText = "🎉 太棒了！答對了！";
+                fb.style.color = "green";
+                quizScore += 10;
+                document.getElementById('quiz-score').innerText = quizScore;
+                nextBtn.style.opacity = "1";
+                nextBtn.style.pointerEvents = "auto";
+                document.querySelectorAll('#quiz-options button').forEach(b => b.disabled = true);
+                btn.classList.replace('bg-white', 'bg-green-100');
+            } else {
+                fb.innerText = "❌ 再試一次看看！";
+                fb.style.color = "red";
+                document.getElementById('quiz-container').classList.add('shake');
+                setTimeout(() => document.getElementById('quiz-container').classList.remove('shake'), 500);
+            }
+        }
+
+        function setDayNight(mode) {
+            const body = document.body;
+            const dayT = document.getElementById('day-txt');
+            const nightT = document.getElementById('night-txt');
+            if(mode === 'night') {
+                body.classList.add('night-mode');
+                if(dayT) dayT.classList.add('hidden');
+                if(nightT) nightT.classList.remove('hidden');
+            } else {
+                body.classList.remove('night-mode');
+                if(dayT) dayT.classList.remove('hidden');
+                if(nightT) nightT.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
